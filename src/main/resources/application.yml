@@ -1,0 +1,20 @@
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always   # exposes per-indicator details in the JSON response
+  health:
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
+
+spring:
+  application:
+    name: transactions-api
