@@ -8,7 +8,7 @@ management:
         include: health, info, metrics
   endpoint:
     health:
-      show-details: always   # exposes per-indicator details in the JSON response
+      show-details: always
   health:
     livenessState:
       enabled: true
@@ -18,3 +18,12 @@ management:
 spring:
   application:
     name: transactions-api
+  jackson:
+    deserialization:
+      use-big-decimal-for-floats: true
+
+aws:
+  dynamodb:
+    endpoint: ${AWS_DYNAMODB_ENDPOINT:http://localhost:8000}
+    region: ${AWS_REGION:us-east-1}
+    table-name: TransactionsDB
