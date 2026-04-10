@@ -17,7 +17,7 @@ docker-compose up
 - Although the exercise mentions that an in-memory database could be used, I preferred to have persistence to make it as close as possible to a production environment, opting for **DynamoDB**.
   - A **GSI (Global Secondary Index)** was added to retrieve all transactions given a type, necessary for the `GET /transactions/types/{type}` endpoint.
 - An in-memory map to represent a graph structure was considered but discarded in favor of a solution using a persistence layer.
-- Thinking about a production environment with high throughput, I decided not to perform the recursive sum operation synchronously when processing the `/sum` request. Instead, I went with an **async solution** (implemented using `@Async` for the sake of this exercise). In a production environment it would be worth using **CDC and a serverless process** to recalculate the necessary data (i.e. the sum amount in this exercise).
+- Thinking about a production environment with high throughput, I decided not to perform the recursive sum operation synchronously when processing the `/sum` request. Instead, I went with an **async solution** (implemented using `@Async` for the sake of this exercise). In a production environment it would be replaced using **CDC and a serverless process** to recalculate the necessary data (i.e. the sum amount in this exercise).
 
 ---
  
@@ -90,7 +90,8 @@ Returns the precalculated sum amount from a given node to its leaves.
   "sum": 120.00
 }
 ```
-<img width="974" height="797" alt="image" src="https://github.com/user-attachments/assets/5b685de8-006a-41f0-b890-71dcdbecdcbb" />
+<img width="1203" height="789" alt="image" src="https://github.com/user-attachments/assets/f38bfde7-b3d9-45f7-ac34-0287460de790" />
+
 
 
 
