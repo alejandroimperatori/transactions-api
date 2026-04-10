@@ -90,7 +90,8 @@ Returns the precalculated sum amount from a given node to its leaves.
   "sum": 120.00
 }
 ```
-<img width="1203" height="789" alt="image" src="https://github.com/user-attachments/assets/f38bfde7-b3d9-45f7-ac34-0287460de790" />
+<img width="1260" height="803" alt="image" src="https://github.com/user-attachments/assets/55fdda4e-5663-4330-aac5-18dbc0a865e1" />
+
 
 
 
