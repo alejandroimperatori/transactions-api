@@ -1,6 +1,7 @@
 package com.transactions.api.service;
 
 import com.transactions.api.dto.CreateTransactionRequest;
+import com.transactions.api.exception.ParentTransactionNotFoundException;
 import com.transactions.api.model.Transaction;
 import com.transactions.api.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
@@ -14,28 +15,39 @@ import java.util.UUID;
 public class TransactionService {
 
     private final TransactionRepository repository;
+    private final AncestorSumAmountUpdater ancestorSumAmountUpdater;
 
-    public TransactionService(TransactionRepository repository) {
+    public TransactionService(TransactionRepository repository,
+                              AncestorSumAmountUpdater ancestorSumAmountUpdater) {
         this.repository = repository;
+        this.ancestorSumAmountUpdater = ancestorSumAmountUpdater;
     }
 
     public String create(CreateTransactionRequest request) {
         String id  = UUID.randomUUID().toString();
         String now = Instant.now().toString();
-
         String parentId = request.parentId();
+
+        if (parentId != null) {
+            repository.findById(parentId)
+                    .orElseThrow(() -> new ParentTransactionNotFoundException(parentId));
+        }
 
         Transaction transaction = new Transaction(
                 id,
                 request.type(),
                 request.amount(),
                 parentId,
-                BigDecimal.ZERO,   // sum_amount starts at 0, will be incremented by children transactions
+                request.amount(),
                 now,
                 now
         );
 
-        repository.saveWithOptionalParentUpdate(transaction);
+        repository.save(transaction);
+
+        if (parentId != null) {
+            ancestorSumAmountUpdater.updateAncestors(parentId, request.amount(), now);
+        }
 
         return id;
     }

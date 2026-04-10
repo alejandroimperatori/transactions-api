@@ -1,17 +1,17 @@
 package com.transactions.api.repository;
 
-import com.transactions.api.exception.ParentTransactionNotFoundException;
 import com.transactions.api.model.Transaction;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Collections;
+import java.util.Optional;
 
 @Repository
 public class DynamoDbTransactionRepository implements TransactionRepository {
@@ -26,52 +26,51 @@ public class DynamoDbTransactionRepository implements TransactionRepository {
     }
 
     @Override
-    public void saveWithOptionalParentUpdate(Transaction transaction) {
-        List<TransactWriteItem> items = new ArrayList<>();
+    public void save(Transaction transaction) {
+        dynamoDbClient.putItem(PutItemRequest.builder()
+                .tableName(tableName)
+                .item(buildItem(transaction))
+                .conditionExpression("attribute_not_exists(id)")
+                .build());
+    }
 
-        Map<String, AttributeValue> item = buildItem(transaction);
-
-        items.add(TransactWriteItem.builder()
-                .put(Put.builder()
-                        .tableName(tableName)
-                        .item(item)
-                        .conditionExpression("attribute_not_exists(id)")
-                        .build())
+    @Override
+    public Optional<Transaction> findById(String id) {
+        GetItemResponse response = dynamoDbClient.getItem(GetItemRequest.builder()
+                .tableName(tableName)
+                .key(Map.of("id", AttributeValue.builder().s(id).build()))
                 .build());
 
-        if (transaction.getParentId() != null) {
-            Map<String, AttributeValue> parentKey = Map.of(
-                    "id", AttributeValue.builder().s(transaction.getParentId()).build()
-            );
-
-            Map<String, AttributeValue> exprValues = Map.of(
-                    ":amount",    AttributeValue.builder().n(transaction.getAmount().toPlainString()).build(),
-                    ":updatedAt", AttributeValue.builder().s(transaction.getUpdatedAt()).build()
-            );
-
-            items.add(TransactWriteItem.builder()
-                    .update(Update.builder()
-                            .tableName(tableName)
-                            .key(parentKey)
-                            .updateExpression("ADD sum_amount :amount SET updated_at = :updatedAt")
-                            .conditionExpression("attribute_exists(id)")
-                            .expressionAttributeValues(exprValues)
-                            .build())
-                    .build());
+        if (!response.hasItem() || response.item().isEmpty()) {
+            return Optional.empty();
         }
 
-        try {
-            dynamoDbClient.transactWriteItems(
-                    TransactWriteItemsRequest.builder().transactItems(items).build()
-            );
-        } catch (TransactionCanceledException e) {
-            List<CancellationReason> reasons = e.cancellationReasons();
-            if (reasons.size() > 1 && "ConditionalCheckFailed".equals(reasons.get(1).code())) {
-                throw new ParentTransactionNotFoundException(transaction.getParentId());
-            }
-
-            throw e;
+        Map<String, AttributeValue> item = response.item();
+        Transaction transaction = new Transaction();
+        transaction.setId(item.get("id").s());
+        transaction.setType(item.get("type").s());
+        transaction.setAmount(new BigDecimal(item.get("amount").n()));
+        transaction.setSumAmount(new BigDecimal(item.get("sum_amount").n()));
+        transaction.setCreatedAt(item.get("created_at").s());
+        transaction.setUpdatedAt(item.get("updated_at").s());
+        if (item.containsKey("parent_id")) {
+            transaction.setParentId(item.get("parent_id").s());
         }
+
+        return Optional.of(transaction);
+    }
+
+    @Override
+    public void updateSumAmount(String id, BigDecimal amount, String updatedAt) {
+        dynamoDbClient.updateItem(UpdateItemRequest.builder()
+                .tableName(tableName)
+                .key(Map.of("id", AttributeValue.builder().s(id).build()))
+                .updateExpression("ADD sum_amount :amount SET updated_at = :updatedAt")
+                .expressionAttributeValues(Map.of(
+                        ":amount",    AttributeValue.builder().n(amount.toPlainString()).build(),
+                        ":updatedAt", AttributeValue.builder().s(updatedAt).build()
+                ))
+                .build());
     }
 
     @Override
@@ -111,7 +110,6 @@ public class DynamoDbTransactionRepository implements TransactionRepository {
         if (t.getParentId() != null) {
             item.put("parent_id", AttributeValue.builder().s(t.getParentId()).build());
         }
-
         return item;
     }
 }

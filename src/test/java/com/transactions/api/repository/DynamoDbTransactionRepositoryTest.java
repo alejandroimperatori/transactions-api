@@ -1,26 +1,26 @@
 package com.transactions.api.repository;
 
-import com.transactions.api.exception.ParentTransactionNotFoundException;
 import com.transactions.api.model.Transaction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
-import software.amazon.awssdk.services.dynamodb.model.CancellationReason;
+import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
+import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.PutItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
-import software.amazon.awssdk.services.dynamodb.model.TransactWriteItem;
-import software.amazon.awssdk.services.dynamodb.model.TransactWriteItemsRequest;
-import software.amazon.awssdk.services.dynamodb.model.TransactWriteItemsResponse;
-import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemResponse;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -38,101 +38,114 @@ class DynamoDbTransactionRepositoryTest {
     void setUp() {
         dynamoDbClient = mock(DynamoDbClient.class);
         repository = new DynamoDbTransactionRepository(dynamoDbClient, TABLE_NAME);
-        when(dynamoDbClient.transactWriteItems(any(TransactWriteItemsRequest.class)))
-                .thenReturn(TransactWriteItemsResponse.builder().build());
+        when(dynamoDbClient.putItem(any(PutItemRequest.class)))
+                .thenReturn(PutItemResponse.builder().build());
+        when(dynamoDbClient.updateItem(any(UpdateItemRequest.class)))
+                .thenReturn(UpdateItemResponse.builder().build());
     }
 
     private Transaction buildTransaction(String id, String type, BigDecimal amount, String parentId) {
-        return new Transaction(id, type, amount, parentId, BigDecimal.ZERO,
-                "2026-04-09T00:00:00Z", "2026-04-00T00:00:00Z");
+        return new Transaction(id, type, amount, parentId, amount,
+                "2026-04-09T00:00:00Z", "2026-04-09T00:00:00Z");
     }
 
     private Map<String, AttributeValue> idItem(String id) {
         return Map.of("id", AttributeValue.builder().s(id).build());
     }
 
-    @Test
-    void fetchIdsByType_returnsEmptyListWhenNoItems() {
-        QueryResponse response = QueryResponse.builder()
-                .items(List.of())
-                .lastEvaluatedKey(Map.of())
-                .build();
-
-        when(dynamoDbClient.query(any(QueryRequest.class))).thenReturn(response);
-
-        List<String> ids = repository.fetchIdsByType("unknown");
-
-        assertThat(ids).isEmpty();
-    }
+    // --- save ---
 
     @Test
-    void saveWithOptionalParentUpdate_successNoParent() {
+    void save_persistsItemWithCorrectAttributes() {
         Transaction tx = buildTransaction("tx-1", "payment", new BigDecimal("100.00"), null);
 
-        repository.saveWithOptionalParentUpdate(tx);
+        repository.save(tx);
 
-        ArgumentCaptor<TransactWriteItemsRequest> captor = ArgumentCaptor.forClass(TransactWriteItemsRequest.class);
-        verify(dynamoDbClient).transactWriteItems(captor.capture());
+        ArgumentCaptor<PutItemRequest> captor = ArgumentCaptor.forClass(PutItemRequest.class);
+        verify(dynamoDbClient).putItem(captor.capture());
 
-        List<TransactWriteItem> items = captor.getValue().transactItems();
-        assertThat(items).hasSize(1);
-        assertThat(items.getFirst().put()).isNotNull();
-        assertThat(items.getFirst().update()).isNull();
-        assertThat(items.getFirst().put().item().get("id").s()).isEqualTo("tx-1");
-        assertThat(items.getFirst().put().item().get("type").s()).isEqualTo("payment");
-        assertThat(items.getFirst().put().item().get("amount").n()).isEqualTo("100.00");
-        assertThat(items.getFirst().put().item()).doesNotContainKey("parent_id");
+        Map<String, AttributeValue> item = captor.getValue().item();
+        assertThat(captor.getValue().tableName()).isEqualTo(TABLE_NAME);
+        assertThat(item.get("id").s()).isEqualTo("tx-1");
+        assertThat(item.get("type").s()).isEqualTo("payment");
+        assertThat(item.get("amount").n()).isEqualTo("100.00");
+        assertThat(item).doesNotContainKey("parent_id");
     }
 
     @Test
-    void saveWithOptionalParentUpdate_successWithParent() {
-        Transaction tx = buildTransaction("tx-2", "payment", new BigDecimal("100.00"), "parent-tx");
+    void save_includesParentIdWhenPresent() {
+        Transaction tx = buildTransaction("tx-2", "payment", new BigDecimal("50.00"), "parent-1");
 
-        repository.saveWithOptionalParentUpdate(tx);
+        repository.save(tx);
 
-        ArgumentCaptor<TransactWriteItemsRequest> captor = ArgumentCaptor.forClass(TransactWriteItemsRequest.class);
-        verify(dynamoDbClient).transactWriteItems(captor.capture());
+        ArgumentCaptor<PutItemRequest> captor = ArgumentCaptor.forClass(PutItemRequest.class);
+        verify(dynamoDbClient).putItem(captor.capture());
+        assertThat(captor.getValue().item().get("parent_id").s()).isEqualTo("parent-1");
+    }
 
-        List<TransactWriteItem> items = captor.getValue().transactItems();
-        assertThat(items).hasSize(2);
-        assertThat(items.getFirst().put()).isNotNull();
-        assertThat(items.getFirst().put().item().get("id").s()).isEqualTo("tx-2");
-        assertThat(items.getFirst().put().item().get("type").s()).isEqualTo("payment");
-        assertThat(items.getFirst().put().item().get("amount").n()).isEqualTo("100.00");
-        assertThat(items.getFirst().put().item().get("parent_id").s()).isEqualTo("parent-tx");
-        assertThat(items.get(1).update()).isNotNull();
+    // --- findById ---
+
+    @Test
+    void findById_returnsTransactionWhenFound() {
+        Map<String, AttributeValue> item = Map.of(
+                "id",         AttributeValue.builder().s("tx-9").build(),
+                "type",       AttributeValue.builder().s("payment").build(),
+                "amount",     AttributeValue.builder().n("100.00").build(),
+                "sum_amount", AttributeValue.builder().n("250.00").build(),
+                "created_at", AttributeValue.builder().s("2026-01-01T00:00:00Z").build(),
+                "updated_at", AttributeValue.builder().s("2026-01-01T00:00:00Z").build()
+        );
+        when(dynamoDbClient.getItem(any(GetItemRequest.class)))
+                .thenReturn(GetItemResponse.builder().item(item).build());
+
+        Optional<Transaction> result = repository.findById("tx-9");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getId()).isEqualTo("tx-9");
+        assertThat(result.get().getSumAmount()).isEqualByComparingTo(new BigDecimal("250.00"));
+        assertThat(result.get().getParentId()).isNull();
     }
 
     @Test
-    void saveWithOptionalParentUpdate_parentNotFoundException() {
-        Transaction tx = buildTransaction("tx-6", "payment", new BigDecimal("10.00"), "missing-parent");
+    void findById_returnsEmptyWhenNotFound() {
+        when(dynamoDbClient.getItem(any(GetItemRequest.class)))
+                .thenReturn(GetItemResponse.builder().build());
 
-        CancellationReason putOk = CancellationReason.builder().code("None").build();
-        CancellationReason parentFailed = CancellationReason.builder().code("ConditionalCheckFailed").build();
+        assertThat(repository.findById("missing")).isEmpty();
+    }
 
-        TransactionCanceledException exception = TransactionCanceledException.builder()
-                .cancellationReasons(List.of(putOk, parentFailed))
-                .build();
+    // --- incrementSumAmount ---
 
-        when(dynamoDbClient.transactWriteItems(any(TransactWriteItemsRequest.class))).thenThrow(exception);
+    @Test
+    void updateSumAmount_sendsCorrectUpdateExpression() {
+        repository.updateSumAmount("tx-1", new BigDecimal("50.00"), "2026-04-09T00:00:00Z");
 
-        assertThatThrownBy(() -> repository.saveWithOptionalParentUpdate(tx))
-                .isInstanceOf(ParentTransactionNotFoundException.class)
-                .hasMessageContaining("missing-parent");
+        ArgumentCaptor<UpdateItemRequest> captor = ArgumentCaptor.forClass(UpdateItemRequest.class);
+        verify(dynamoDbClient).updateItem(captor.capture());
+
+        UpdateItemRequest req = captor.getValue();
+        assertThat(req.tableName()).isEqualTo(TABLE_NAME);
+        assertThat(req.key().get("id").s()).isEqualTo("tx-1");
+        assertThat(req.updateExpression()).contains("ADD sum_amount :amount");
+        assertThat(req.expressionAttributeValues().get(":amount").n()).isEqualTo("50.00");
+    }
+
+    // --- fetchIdsByType ---
+
+    @Test
+    void fetchIdsByType_returnsEmptyListWhenNoItems() {
+        when(dynamoDbClient.query(any(QueryRequest.class))).thenReturn(QueryResponse.builder()
+                .items(List.of()).lastEvaluatedKey(Map.of()).build());
+
+        assertThat(repository.fetchIdsByType("unknown")).isEmpty();
     }
 
     @Test
     void fetchIdsByType_singlePage() {
-        QueryResponse response = QueryResponse.builder()
-                .items(idItem("tx-a"), idItem("tx-b"))
-                .lastEvaluatedKey(Map.of())
-                .build();
+        when(dynamoDbClient.query(any(QueryRequest.class))).thenReturn(QueryResponse.builder()
+                .items(idItem("tx-a"), idItem("tx-b")).lastEvaluatedKey(Map.of()).build());
 
-        when(dynamoDbClient.query(any(QueryRequest.class))).thenReturn(response);
-
-        List<String> ids = repository.fetchIdsByType("payment");
-
-        assertThat(ids).containsExactly("tx-a", "tx-b");
+        assertThat(repository.fetchIdsByType("payment")).containsExactly("tx-a", "tx-b");
         verify(dynamoDbClient, times(1)).query(any(QueryRequest.class));
     }
 
@@ -143,24 +156,11 @@ class DynamoDbTransactionRepositoryTest {
                 "type", AttributeValue.builder().s("payment").build()
         );
 
-        QueryResponse firstPage = QueryResponse.builder()
-                .items(idItem("tx-a"), idItem("tx-b"))
-                .lastEvaluatedKey(lastKey)
-                .build();
-
-        QueryResponse secondPage = QueryResponse.builder()
-                .items(idItem("tx-c"))
-                .lastEvaluatedKey(Map.of())
-                .build();
-
         when(dynamoDbClient.query(any(QueryRequest.class)))
-                .thenReturn(firstPage)
-                .thenReturn(secondPage);
+                .thenReturn(QueryResponse.builder().items(idItem("tx-a"), idItem("tx-b")).lastEvaluatedKey(lastKey).build())
+                .thenReturn(QueryResponse.builder().items(idItem("tx-c")).lastEvaluatedKey(Map.of()).build());
 
-        List<String> ids = repository.fetchIdsByType("payment");
-
-        assertThat(ids).containsExactly("tx-a", "tx-b", "tx-c");
+        assertThat(repository.fetchIdsByType("payment")).containsExactly("tx-a", "tx-b", "tx-c");
         verify(dynamoDbClient, times(2)).query(any(QueryRequest.class));
     }
-
 }
