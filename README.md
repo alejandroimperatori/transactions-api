@@ -23,7 +23,7 @@ docker-compose up
  
 ## Implementation
  
-The majority of the code was generated leveraging **Claude Code**. My primary background is in **Go**, not Java, so Claude Code was used as a force multiplier to navigate Spring Boot idioms, project structure, and Java-specific patterns once I defined the architecture decisions, data modeling, and overall design.
+The majority of the code was generated leveraging **Claude Code**. Since my main background is in **Go** and not Java, Claude Code was used as a force multiplier to navigate Spring Boot idioms, project structure, and Java-specific patterns once I defined the architecture decisions, data modeling, and overall design.
 
 ---
  
