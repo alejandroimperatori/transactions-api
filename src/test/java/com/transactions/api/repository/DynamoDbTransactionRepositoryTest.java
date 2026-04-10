@@ -134,10 +134,16 @@ class DynamoDbTransactionRepositoryTest {
 
     @Test
     void fetchIdsByType_returnsEmptyListWhenNoItems() {
-        when(dynamoDbClient.query(any(QueryRequest.class))).thenReturn(QueryResponse.builder()
-                .items(List.of()).lastEvaluatedKey(Map.of()).build());
+        QueryResponse response = QueryResponse.builder()
+                .items(List.of())
+                .lastEvaluatedKey(Map.of())
+                .build();
 
-        assertThat(repository.fetchIdsByType("unknown")).isEmpty();
+        when(dynamoDbClient.query(any(QueryRequest.class))).thenReturn(response);
+
+        List<String> ids = repository.fetchIdsByType("unknown");
+
+        assertThat(ids).isEmpty();
     }
 
     @Test
@@ -163,4 +169,36 @@ class DynamoDbTransactionRepositoryTest {
         assertThat(repository.fetchIdsByType("payment")).containsExactly("tx-a", "tx-b", "tx-c");
         verify(dynamoDbClient, times(2)).query(any(QueryRequest.class));
     }
+
+    @Test
+    void getById_returnsTransactionWhenFound() {
+        Map<String, AttributeValue> item = Map.of(
+                "id",         AttributeValue.builder().s("tx-9").build(),
+                "type",       AttributeValue.builder().s("payment").build(),
+                "amount",     AttributeValue.builder().n("100.00").build(),
+                "sum_amount", AttributeValue.builder().n("250.00").build(),
+                "created_at", AttributeValue.builder().s("2026-01-01T00:00:00Z").build(),
+                "updated_at", AttributeValue.builder().s("2026-01-01T00:00:00Z").build()
+        );
+        GetItemResponse response = GetItemResponse.builder().item(item).build();
+        when(dynamoDbClient.getItem(any(GetItemRequest.class))).thenReturn(response);
+
+        java.util.Optional<com.transactions.api.model.Transaction> result = repository.getById("tx-9");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getId()).isEqualTo("tx-9");
+        assertThat(result.get().getType()).isEqualTo("payment");
+        assertThat(result.get().getSumAmount()).isEqualByComparingTo(new java.math.BigDecimal("250.00"));
+    }
+
+    @Test
+    void getById_returnsEmptyWhenNotFound() {
+        GetItemResponse response = GetItemResponse.builder().build();
+        when(dynamoDbClient.getItem(any(GetItemRequest.class))).thenReturn(response);
+
+        java.util.Optional<com.transactions.api.model.Transaction> result = repository.getById("tx-missing");
+
+        assertThat(result).isEmpty();
+    }
+
 }

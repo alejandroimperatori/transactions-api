@@ -11,4 +11,5 @@ public interface TransactionRepository {
     Optional<Transaction> findById(String id);
     void updateSumAmount(String id, BigDecimal amount, String updatedAt);
     List<String> fetchIdsByType(String type);
+    Optional<Transaction> getById(String id);
 }

@@ -2,7 +2,7 @@ package com.transactions.api.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.transactions.api.dto.CreateTransactionRequest;
-import com.transactions.api.exception.ParentTransactionNotFoundException;
+import com.transactions.api.exception.TransactionNotFoundException;
 import com.transactions.api.service.TransactionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -91,7 +91,7 @@ class TransactionControllerTest {
                 new BigDecimal("100.00"), "payment", "parent-999");
 
         when(transactionService.create(request))
-                .thenThrow(new ParentTransactionNotFoundException("parent-999"));
+                .thenThrow(new TransactionNotFoundException("parent-999"));
 
         mockMvc.perform(post("/transactions")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -119,5 +119,24 @@ class TransactionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    void getSumAmount_success() throws Exception {
+        when(transactionService.getSumAmount("tx-1")).thenReturn(new java.math.BigDecimal("250.00"));
+
+        mockMvc.perform(get("/transactions/sum/tx-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sum").value(250.00));
+    }
+
+    @Test
+    void getSumAmount_notFound() throws Exception {
+        when(transactionService.getSumAmount("tx-missing"))
+                .thenThrow(new TransactionNotFoundException("tx-missing"));
+
+        mockMvc.perform(get("/transactions/sum/tx-missing"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value("NOT_FOUND"));
     }
 }

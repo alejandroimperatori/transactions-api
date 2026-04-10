@@ -2,6 +2,7 @@ package com.transactions.api.controller;
 
 import com.transactions.api.dto.CreateTransactionRequest;
 import com.transactions.api.dto.CreateTransactionResponse;
+import com.transactions.api.dto.SumAmountResponse;
 import com.transactions.api.service.TransactionService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -25,16 +26,21 @@ public class TransactionController {
         this.transactionService = transactionService;
     }
 
-    @GetMapping("/types/{type}")
-    public ResponseEntity<List<String>> fetchIdsByType(@PathVariable String type) {
-        return ResponseEntity.ok(transactionService.fetchIdsByType(type));
-    }
-
     @PostMapping
     public ResponseEntity<CreateTransactionResponse> create(
             @RequestBody @Valid CreateTransactionRequest request) {
         String id = transactionService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new CreateTransactionResponse(id));
+    }
+
+    @GetMapping("/types/{type}")
+    public ResponseEntity<List<String>> fetchIdsByType(@PathVariable String type) {
+        return ResponseEntity.ok(transactionService.fetchIdsByType(type));
+    }
+
+    @GetMapping("/sum/{transactionId}")
+    public ResponseEntity<SumAmountResponse> getSumAmount(@PathVariable String transactionId) {
+        return ResponseEntity.ok(new SumAmountResponse(transactionService.getSumAmount(transactionId)));
     }
 }

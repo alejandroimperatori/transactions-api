@@ -10,8 +10,8 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @RestControllerAdvice
 public class ExceptionHandler {
 
-    @org.springframework.web.bind.annotation.ExceptionHandler(ParentTransactionNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleParentNotFound(ParentTransactionNotFoundException ex) {
+    @org.springframework.web.bind.annotation.ExceptionHandler(TransactionNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleTransactionNotFound(TransactionNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ErrorResponse("NOT_FOUND", ex.getMessage()));
     }

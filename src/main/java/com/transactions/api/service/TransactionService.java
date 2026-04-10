@@ -1,7 +1,7 @@
 package com.transactions.api.service;
 
 import com.transactions.api.dto.CreateTransactionRequest;
-import com.transactions.api.exception.ParentTransactionNotFoundException;
+import com.transactions.api.exception.TransactionNotFoundException;
 import com.transactions.api.model.Transaction;
 import com.transactions.api.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
@@ -30,7 +30,7 @@ public class TransactionService {
 
         if (parentId != null) {
             repository.findById(parentId)
-                    .orElseThrow(() -> new ParentTransactionNotFoundException(parentId));
+                    .orElseThrow(() -> new TransactionNotFoundException(parentId));
         }
 
         Transaction transaction = new Transaction(
@@ -54,5 +54,12 @@ public class TransactionService {
 
     public List<String> fetchIdsByType(String type) {
         return repository.fetchIdsByType(type);
+    }
+
+    public BigDecimal getSumAmount(String id) {
+        Transaction transaction = repository.getById(id)
+                .orElseThrow(() -> new TransactionNotFoundException(id));
+
+        return transaction.getSumAmount();
     }
 }

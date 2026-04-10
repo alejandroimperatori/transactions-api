@@ -1,7 +1,7 @@
 package com.transactions.api.service;
 
 import com.transactions.api.dto.CreateTransactionRequest;
-import com.transactions.api.exception.ParentTransactionNotFoundException;
+import com.transactions.api.exception.TransactionNotFoundException;
 import com.transactions.api.model.Transaction;
 import com.transactions.api.repository.TransactionRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -86,7 +86,7 @@ class TransactionServiceTest {
 
         assertThatThrownBy(() -> service.create(
                 new CreateTransactionRequest(new BigDecimal("10.00"), "payment", "missing")))
-                .isInstanceOf(ParentTransactionNotFoundException.class)
+                .isInstanceOf(TransactionNotFoundException.class)
                 .hasMessageContaining("missing");
 
         verify(repository, never()).save(any());
@@ -119,4 +119,25 @@ class TransactionServiceTest {
 
         assertThat(service.fetchIdsByType("unknown")).isEmpty();
     }
+
+    @Test
+    void getSumAmount_returnsValueFromRepository() {
+        Transaction transaction = new Transaction("tx-1", "payment", new BigDecimal("100.00"),
+                null, new BigDecimal("350.00"), "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z");
+        when(repository.getById("tx-1")).thenReturn(java.util.Optional.of(transaction));
+
+        BigDecimal result = service.getSumAmount("tx-1");
+
+        assertThat(result).isEqualByComparingTo(new BigDecimal("350.00"));
+    }
+
+    @Test
+    void getSumAmount_throwsWhenTransactionNotFound() {
+        when(repository.getById("tx-missing")).thenReturn(java.util.Optional.empty());
+
+        assertThatThrownBy(() -> service.getSumAmount("tx-missing"))
+                .isInstanceOf(com.transactions.api.exception.TransactionNotFoundException.class)
+                .hasMessageContaining("tx-missing");
+    }
+
 }

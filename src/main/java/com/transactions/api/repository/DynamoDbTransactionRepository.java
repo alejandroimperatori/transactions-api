@@ -7,6 +7,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -45,19 +46,7 @@ public class DynamoDbTransactionRepository implements TransactionRepository {
             return Optional.empty();
         }
 
-        Map<String, AttributeValue> item = response.item();
-        Transaction transaction = new Transaction();
-        transaction.setId(item.get("id").s());
-        transaction.setType(item.get("type").s());
-        transaction.setAmount(new BigDecimal(item.get("amount").n()));
-        transaction.setSumAmount(new BigDecimal(item.get("sum_amount").n()));
-        transaction.setCreatedAt(item.get("created_at").s());
-        transaction.setUpdatedAt(item.get("updated_at").s());
-        if (item.containsKey("parent_id")) {
-            transaction.setParentId(item.get("parent_id").s());
-        }
-
-        return Optional.of(transaction);
+        return Optional.of(mapItem(response.item()));
     }
 
     @Override
@@ -97,6 +86,35 @@ public class DynamoDbTransactionRepository implements TransactionRepository {
         } while (lastKey != null);
 
         return ids;
+    }
+
+    @Override
+    public Optional<Transaction> getById(String id) {
+        GetItemResponse response = dynamoDbClient.getItem(GetItemRequest.builder()
+                .tableName(tableName)
+                .key(Map.of("id", AttributeValue.builder().s(id).build()))
+                .build());
+
+        if (!response.hasItem() || response.item().isEmpty()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(mapItem(response.item()));
+    }
+
+    private Transaction mapItem(Map<String, AttributeValue> item) {
+        Transaction transaction = new Transaction();
+        transaction.setId(item.get("id").s());
+        transaction.setType(item.get("type").s());
+        transaction.setAmount(new BigDecimal(item.get("amount").n()));
+        transaction.setSumAmount(new BigDecimal(item.get("sum_amount").n())
+                .setScale(2, RoundingMode.HALF_UP));
+        transaction.setCreatedAt(item.get("created_at").s());
+        transaction.setUpdatedAt(item.get("updated_at").s());
+        if (item.containsKey("parent_id")) {
+            transaction.setParentId(item.get("parent_id").s());
+        }
+        return transaction;
     }
 
     private Map<String, AttributeValue> buildItem(Transaction t) {
