@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -69,4 +70,24 @@ class TransactionServiceTest {
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("db error");
     }
+
+    @Test
+    void fetchIdsByType_returnsIdsFromRepository() {
+        when(repository.fetchIdsByType("payment")).thenReturn(List.of("id-1", "id-2"));
+
+        List<String> result = service.fetchIdsByType("payment");
+
+        assertThat(result).containsExactly("id-1", "id-2");
+        verify(repository).fetchIdsByType("payment");
+    }
+
+    @Test
+    void fetchIdsByType_returnsEmptyListWhenNoneFound() {
+        when(repository.fetchIdsByType("unknown")).thenReturn(List.of());
+
+        List<String> result = service.fetchIdsByType("unknown");
+
+        assertThat(result).isEmpty();
+    }
+
 }

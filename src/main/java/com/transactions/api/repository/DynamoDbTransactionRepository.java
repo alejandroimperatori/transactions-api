@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Collections;
 
 @Repository
 public class DynamoDbTransactionRepository implements TransactionRepository {
@@ -71,6 +72,32 @@ public class DynamoDbTransactionRepository implements TransactionRepository {
 
             throw e;
         }
+    }
+
+    @Override
+    public List<String> fetchIdsByType(String type) {
+        List<String> ids = new ArrayList<>();
+        Map<String, AttributeValue> lastKey = null;
+
+        do {
+            QueryRequest.Builder requestBuilder = QueryRequest.builder()
+                    .tableName(tableName)
+                    .indexName("type-index")
+                    .keyConditionExpression("#t = :type")
+                    .expressionAttributeNames(Map.of("#t", "type"))
+                    .expressionAttributeValues(Map.of(":type", AttributeValue.builder().s(type).build()))
+                    .projectionExpression("id");
+
+            if (lastKey != null) {
+                requestBuilder.exclusiveStartKey(lastKey);
+            }
+
+            QueryResponse response = dynamoDbClient.query(requestBuilder.build());
+            response.items().forEach(item -> ids.add(item.get("id").s()));
+            lastKey = response.lastEvaluatedKey().isEmpty() ? null : response.lastEvaluatedKey();
+        } while (lastKey != null);
+
+        return ids;
     }
 
     private Map<String, AttributeValue> buildItem(Transaction t) {

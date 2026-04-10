@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -37,5 +38,9 @@ public class TransactionService {
         repository.saveWithOptionalParentUpdate(transaction);
 
         return id;
+    }
+
+    public List<String> fetchIdsByType(String type) {
+        return repository.fetchIdsByType(type);
     }
 }

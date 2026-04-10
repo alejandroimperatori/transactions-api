@@ -13,8 +13,11 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 
+import java.util.List;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -95,5 +98,26 @@ class TransactionControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("NOT_FOUND"));
+    }
+
+    @Test
+    void fetchIdsByType_success() throws Exception {
+        when(transactionService.fetchIdsByType("payment")).thenReturn(List.of("id-1", "id-2", "id-3"));
+
+        mockMvc.perform(get("/transactions/types/payment"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0]").value("id-1"))
+                .andExpect(jsonPath("$[1]").value("id-2"))
+                .andExpect(jsonPath("$[2]").value("id-3"));
+    }
+
+    @Test
+    void fetchIdsByType_successEmptyList() throws Exception {
+        when(transactionService.fetchIdsByType("unknown")).thenReturn(List.of());
+
+        mockMvc.perform(get("/transactions/types/unknown"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$").isEmpty());
     }
 }
