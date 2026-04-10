@@ -52,7 +52,7 @@ Creates a transaction.
  
 ```json
 {
-  "transaction_id": "9f362e46-ca67-4d1b-bf9e-ae4d523081fe"
+  "transaction_id": "9f362e46..."
 }
 ```
  
@@ -65,10 +65,10 @@ Returns all transaction IDs for a given type.
  
 ```json
 [
-  "08e6ce8f-5d4a-490f-a3bb-335d75286e29",
-  "9f362e46-ca67-4d1b-bf9e-ae4d523081fe",
-  "13378424-8646-4839-a7a5-e7880417205a",
-  "7fc6ebf3-7428-4647-811d-f5292ac7f9df"
+  "08e6ce8f...",
+  "9f362e46...",
+  "13378424...",
+  "7fc6ebf3..."
 ]
 ```
  
