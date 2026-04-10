@@ -18,7 +18,13 @@ docker-compose up
   - A **GSI (Global Secondary Index)** was added to retrieve all transactions given a type, necessary for the `GET /transactions/types/{type}` endpoint.
 - An in-memory map to represent a graph structure was considered but discarded in favor of a solution using a persistence layer.
 - Thinking about a production environment with high throughput, I decided not to perform the recursive sum operation synchronously when processing the `/sum` request. Instead, I went with an **async solution** (implemented using `@Async` for the sake of this exercise). In a production environment it would be worth using **CDC and a serverless process** to recalculate the necessary data (i.e. the sum amount in this exercise).
+
+---
  
+## Implementation
+ 
+The majority of the code was generated leveraging **Claude Code**. My primary background is in **Go**, not Java, so Claude Code was used as a force multiplier to navigate Spring Boot idioms, project structure, and Java-specific patterns once I defined the architecture decisions, data modeling, and overall design.
+
 ---
  
 ## Endpoints
